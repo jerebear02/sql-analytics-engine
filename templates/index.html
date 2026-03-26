@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Analytics Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #040608;
+    --surface:   #090d12;
+    --border:    #0e2233;
+    --cyan:      #00e5ff;
+    --cyan-dim:  #0097a7;
+    --green:     #00ff9d;
+    --amber:     #ffb300;
+    --red:       #ff4757;
+    --text:      #c8d8e8;
+    --muted:     #4a6070;
+    --glow:      0 0 12px rgba(0,229,255,0.35);
+    --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+    --font-head: 'Orbitron', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.06) 2px,
+      rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 24px 32px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: relative;
+  }
+
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--cyan), transparent 60%);
+  }
+
+  .logo {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--cyan);
+    text-shadow: var(--glow);
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+
+  .logo span {
+    color: var(--green);
+  }
+
+  .tagline {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .header-meta {
+    margin-left: auto;
+    text-align: right;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── Nav ── */
+  nav {
+    display: flex;
+    gap: 2px;
+    padding: 16px 32px 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 10px 18px 12px;
+    background: none;
+    border: none;
+    border-top: 2px solid transparent;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    color: var(--cyan);
+    border-top-color: var(--cyan);
+    text-shadow: var(--glow);
+  }
+
+  /* ── Main layout ── */
+  main {
+    padding: 28px 32px;
+    max-width: 1200px;
+  }
+
+  /* ── Panel ── */
+  .panel { display: none; animation: fadeIn 0.3s ease; }
+  .panel.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Panel header ── */
+  .panel-header {
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-family: var(--font-head);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+
+  .sql-badge {
+    display: inline-block;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid rgba(0,229,255,0.2);
+    color: var(--cyan-dim);
+    padding: 3px 10px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    border-radius: 2px;
+    margin-right: 8px;
+  }
+
+  .panel-desc {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+
+  /* ── Table ── */
+  .table-wrap {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead tr {
+    background: rgba(0,229,255,0.05);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--cyan-dim);
+    font-weight: normal;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(14,34,51,0.5);
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(0,229,255,0.025); }
+
+  .num  { text-align: right; color: var(--cyan); font-size: 13px; }
+  .pos  { color: var(--amber); font-size: 11px; }
+  .team { color: var(--muted); }
+
+  .rank-cell {
+    color: var(--muted);
+    font-size: 11px;
+    width: 32px;
+    text-align: center;
+  }
+
+  .rank-1 { color: var(--amber) !important; text-shadow: 0 0 8px var(--amber); }
+  .rank-2 { color: #9e9e9e !important; }
+  .rank-3 { color: #bf8c3c !important; }
+
+  .change-pos { color: var(--green); }
+  .change-neg { color: var(--red); }
+
+  .pct-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+  }
+
+  .pct-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .pct-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  /* ── Loading ── */
+  .loading {
+    padding: 48px;
+    text-align: center;
+    color: var(--muted);
+    letter-spacing: 3px;
+    font-size: 11px;
+  }
+
+  .loading::after {
+    content: '';
+    animation: dots 1.2s infinite;
+  }
+
+  @keyframes dots {
+    0%   { content: '.'; }
+    33%  { content: '..'; }
+    66%  { content: '...'; }
+  }
+
+  /* ── Corner decoration ── */
+  .corner-decor {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">SQL<span>.</span>ANALYTICS</div>
+    <div class="tagline">NBA Performance Engine · SQLite + Flask</div>
+  </div>
+  <div class="header-meta">
+    <div style="font-size:11px; color: var(--muted);">
+      <span class="status-dot"></span>LIVE
+    </div>
+    <div style="font-size:10px; color: var(--muted); margin-top:4px; letter-spacing:1px;">
+      3 SEASONS · 30 PLAYERS · 10 TEAMS
+    </div>
+  </div>
+</header>
+
+<nav>
+  <button class="tab active" onclick="show('top-scorers', this)">① Top Scorers</button>
+  <button class="tab" onclick="show('yoy', this)">② YoY Improvement</button>
+  <button class="tab" onclick="show('efficiency', this)">③ Efficiency Rating</button>
+  <button class="tab" onclick="show('teams', this)">④ Team Breakdown</button>
+  <button class="tab" onclick="show('consistent', this)">⑤ Consistent Performers</button>
+</nav>
+
+<main>
+
+  <!-- Panel 1: Top Scorers -->
+  <div class="panel active" id="panel-top-scorers">
+    <div class="panel-header">
+      <div class="panel-title">TOP SCORERS — 2024 SEASON</div>
+      <div>
+        <span class="sql-badge">RANK()</span>
+        <span class="sql-badge">WINDOW FUNCTION</span>
+        <span class="sql-badge">CTE</span>
+      </div>
+      <div class="panel-desc">
+        Uses RANK() OVER (PARTITION BY season ORDER BY ppg DESC) to rank all players within each season.
+        Career average computed via AVG() OVER (PARTITION BY player_id).
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="loading" id="load-top-scorers">QUERYING</div>
+      <table id="tbl-top-scorers" style="display:none">
+        <thead><tr>
+          <th>#</th><th>Player</th><th>Pos</th><th>Team</th>
+          <th style="text-align:right">PPG</th>
+          <th style="text-align:right">Career Avg</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel 2: YoY -->
+  <div class="panel" id="panel-yoy">
+    <div class="panel-header">
+      <div class="panel-title">YEAR-OVER-YEAR IMPROVEMENT</div>
+      <div>
+        <span class="sql-badge">LAG()</span>
+        <span class="sql-badge">WINDOW FUNCTION</span>
+        <span class="sql-badge">CTE</span>
+      </div>
+      <div class="panel-desc">
+        LAG(points_per_game) OVER (PARTITION BY player_id ORDER BY year) retrieves the previous
+        season's value for direct comparison. Sorted by biggest PPG jump.
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="loading" id="load-yoy">QUERYING</div>
+      <table id="tbl-yoy" style="display:none">
+        <thead><tr>
+          <th>Player</th><th>Pos</th><th>Team</th>
+          <th style="text-align:right">2024 PPG</th>
+          <th style="text-align:right">2023 PPG</th>
+          <th style="text-align:right">PPG Δ</th>
+          <th style="text-align:right">APG Δ</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel 3: Efficiency -->
+  <div class="panel" id="panel-efficiency">
+    <div class="panel-header">
+      <div class="panel-title">PLAYER EFFICIENCY RATING</div>
+      <div>
+        <span class="sql-badge">NTILE(10)</span>
+        <span class="sql-badge">CTE</span>
+        <span class="sql-badge">COMPUTED COLUMN</span>
+      </div>
+      <div class="panel-desc">
+        Classic NBA efficiency formula (PTS+REB+AST+STL+BLK – missed FG – missed FT) computed in a CTE.
+        NTILE(10) buckets players into percentile deciles.
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="loading" id="load-efficiency">QUERYING</div>
+      <table id="tbl-efficiency" style="display:none">
+        <thead><tr>
+          <th>Player</th><th>Pos</th><th>Team</th>
+          <th style="text-align:right">EFF</th>
+          <th style="text-align:right">PPG</th>
+          <th style="text-align:right">RPG</th>
+          <th style="text-align:right">APG</th>
+          <th>Percentile</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel 4: Teams -->
+  <div class="panel" id="panel-teams">
+    <div class="panel-header">
+      <div class="panel-title">TEAM BREAKDOWN</div>
+      <div>
+        <span class="sql-badge">NESTED CTEs</span>
+        <span class="sql-badge">PARTITION BY</span>
+        <span class="sql-badge">GROUP BY</span>
+      </div>
+      <div class="panel-desc">
+        Two-level CTE: first aggregates roster stats per team, then ranks each team within
+        its conference using RANK() OVER (PARTITION BY conference ORDER BY avg_ppg DESC).
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="loading" id="load-teams">QUERYING</div>
+      <table id="tbl-teams" style="display:none">
+        <thead><tr>
+          <th>Team</th><th>Conf</th>
+          <th style="text-align:right">Avg PPG</th>
+          <th style="text-align:right">Avg RPG</th>
+          <th style="text-align:right">Avg APG</th>
+          <th style="text-align:right">Star PPG</th>
+          <th style="text-align:right">Conf Rank</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel 5: Consistent -->
+  <div class="panel" id="panel-consistent">
+    <div class="panel-header">
+      <div class="panel-title">MOST CONSISTENT PERFORMERS</div>
+      <div>
+        <span class="sql-badge">MULTI-SEASON CTE</span>
+        <span class="sql-badge">HAVING</span>
+        <span class="sql-badge">MIN/MAX</span>
+      </div>
+      <div class="panel-desc">
+        CTE groups all seasons per player with HAVING seasons_played ≥ 2 and avg_ppg ≥ 15.
+        Sorted by PPG range (max – min) ascending — lowest variance = most consistent.
+      </div>
+    </div>
+    <div class="table-wrap">
+      <div class="loading" id="load-consistent">QUERYING</div>
+      <table id="tbl-consistent" style="display:none">
+        <thead><tr>
+          <th>Player</th><th>Pos</th><th>Team</th>
+          <th style="text-align:right">Avg PPG</th>
+          <th style="text-align:right">Min</th>
+          <th style="text-align:right">Max</th>
+          <th style="text-align:right">Range (↓ = consistent)</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<div class="corner-decor">SQLite · Flask · Python · Window Functions</div>
+
+<script>
+  const loaded = {};
+
+  function show(key, btn) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + key).classList.add('active');
+    if (!loaded[key]) { fetchData(key); loaded[key] = true; }
+  }
+
+  function fmt(v) {
+    if (v === null || v === undefined) return '—';
+    return typeof v === 'number' ? v.toFixed(1) : v;
+  }
+
+  function changeCell(v) {
+    if (v === null || v === undefined) return '<td class="num">—</td>';
+    const cls = v > 0 ? 'change-pos' : v < 0 ? 'change-neg' : '';
+    const sign = v > 0 ? '+' : '';
+    return `<td class="num ${cls}">${sign}${v.toFixed(1)}</td>`;
+  }
+
+  function pctBar(pct) {
+    return `
+      <div class="pct-bar-wrap">
+        <span class="num" style="width:36px">${pct}%</span>
+        <div class="pct-bar">
+          <div class="pct-bar-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }
+
+  async function fetchData(key) {
+    const endpoints = {
+      'top-scorers': '/api/top-scorers',
+      'yoy':         '/api/yoy-improvement',
+      'efficiency':  '/api/efficiency',
+      'teams':       '/api/team-breakdown',
+      'consistent':  '/api/consistent-performers',
+    };
+
+    const res  = await fetch(endpoints[key]);
+    const data = await res.json();
+    const load = document.getElementById('load-' + key);
+    const tbl  = document.getElementById('tbl-' + key);
+    const tbody = tbl.querySelector('tbody');
+    load.style.display = 'none';
+    tbl.style.display  = 'table';
+
+    if (key === 'top-scorers') {
+      tbody.innerHTML = data.map(r => `
+        <tr>
+          <td class="rank-cell rank-${r.rank}">${r.rank}</td>
+          <td>${r.name}</td>
+          <td class="pos">${r.position}</td>
+          <td class="team">${r.team}</td>
+          <td class="num">${fmt(r.points_per_game)}</td>
+          <td class="num" style="color:var(--muted)">${fmt(r.career_avg)}</td>
+        </tr>`).join('');
+    }
+
+    if (key === 'yoy') {
+      tbody.innerHTML = data.map(r => `
+        <tr>
+          <td>${r.name}</td>
+          <td class="pos">${r.position}</td>
+          <td class="team">${r.team}</td>
+          <td class="num">${fmt(r.ppg)}</td>
+          <td class="num" style="color:var(--muted)">${fmt(r.prev_ppg)}</td>
+          ${changeCell(r.ppg_change)}
+          ${changeCell(r.apg_change)}
+        </tr>`).join('');
+    }
+
+    if (key === 'efficiency') {
+      tbody.innerHTML = data.map(r => `
+        <tr>
+          <td>${r.name}</td>
+          <td class="pos">${r.position}</td>
+          <td class="team">${r.team}</td>
+          <td class="num" style="color:var(--green)">${fmt(r.efficiency)}</td>
+          <td class="num">${fmt(r.ppg)}</td>
+          <td class="num">${fmt(r.rpg)}</td>
+          <td class="num">${fmt(r.apg)}</td>
+          <td>${pctBar(r.percentile)}</td>
+        </tr>`).join('');
+    }
+
+    if (key === 'teams') {
+      tbody.innerHTML = data.map(r => `
+        <tr>
+          <td>${r.team}</td>
+          <td class="pos">${r.conference}</td>
+          <td class="num">${fmt(r.avg_ppg)}</td>
+          <td class="num">${fmt(r.avg_rpg)}</td>
+          <td class="num">${fmt(r.avg_apg)}</td>
+          <td class="num" style="color:var(--amber)">${fmt(r.star_ppg)}</td>
+          <td class="num">${r.conf_rank}</td>
+        </tr>`).join('');
+    }
+
+    if (key === 'consistent') {
+      tbody.innerHTML = data.map(r => `
+        <tr>
+          <td>${r.name}</td>
+          <td class="pos">${r.position}</td>
+          <td class="team">${r.team}</td>
+          <td class="num">${fmt(r.avg_ppg)}</td>
+          <td class="num" style="color:var(--muted)">${fmt(r.min_ppg)}</td>
+          <td class="num" style="color:var(--muted)">${fmt(r.max_ppg)}</td>
+          <td class="num" style="color:${r.ppg_range < 3 ? 'var(--green)' : 'var(--text)'}">
+            ±${fmt(r.ppg_range)}
+          </td>
+        </tr>`).join('');
+    }
+  }
+
+  // Load first panel on page load
+  fetchData('top-scorers');
+  loaded['top-scorers'] = true;
+</script>
+</body>
+</html>
