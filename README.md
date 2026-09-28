@@ -24,7 +24,7 @@ Built to demonstrate SQL depth for software engineering portfolios.
 
 **1. Clone and install dependencies**
 ```bash
-git clone <your-repo-url>
+git clone <https://github.com/jerebear02/sql-analytics-engine.git>
 cd sql-analytics-engine
 pip install -r requirements.txt
 ```
