@@ -4,6 +4,14 @@ A Flask + SQLite analytics dashboard showcasing advanced SQL on NBA-style player
 
 Built to demonstrate SQL depth for software engineering portfolios.
 
+> **Data note:** All data is synthetic. `seed.py` generates 30 players, 10 teams,
+> and 3 seasons of stats; nothing is scraped from the NBA.
+
+## Design decisions
+- **Raw SQL, no ORM:** every query lives in `app.py` and is visible and explainable.
+- **Indexes** on the columns used by joins and filters (`idx_stats_player`,
+  `idx_stats_season`, `idx_players_team`)
+
 ---
 
 ## SQL Concepts Demonstrated
